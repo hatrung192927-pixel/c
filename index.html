@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SÀN MÔ PHỎNG — Nến + 20s Mở Cược + Nạp/Rút</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Lightweight Charts (v4) -->
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#0f172a; --panel2:#101826; --text:#e6eef9; --muted:#8aa0c6;
+      --good:#22c55e; --bad:#ef4444; --brand:#2563eb; --amber:#f59e0b; --gold:#fbbf24;
+      --vh:1vh;
+    }
+    html,body{height:100%}
+    body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;margin:0}
+
+    .card{background:var(--panel);border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(2,6,23,.35)}
+    .soft{background:var(--panel2);border-radius:10px;padding:10px}
+    .ghost{background:rgba(255,255,255,.03);border-radius:8px;padding:8px}
+    .btn{padding:12px 14px;border-radius:12px;font-weight:800}
+    .btn-prim{background:var(--brand);color:#fff}
+    .btn-up{background:var(--good);color:#052e16}
+    .btn-down{background:var(--bad);color:#330f0f}
+    .btn-ghost{background:rgba(255,255,255,.06)}
+    .btn-ghost:hover{background:rgba(255,255,255,.1)}
+    .muted{color:var(--muted)}
+    /* Ưu tiên fallback --vh (tương thích cũ). Nếu trình duyệt hỗ trợ svh, rule phía dưới sẽ override */
+    .kline-holder{height:calc(var(--vh) * 56); position:relative}
+    #chartLW{width:100%; height:calc(var(--vh) * 56)}
+    /* Override bằng svh trên trình duyệt mới (ổn định chiều cao khi thanh địa chỉ co/giãn) */
+    .kline-holder{height:clamp(320px, 56svh, 70svh)}
+    #chartLW{height:clamp(320px, 56svh, 70svh)}
+    .progress{height:8px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+    .progress>div{height:100%;background:linear-gradient(90deg,#2563eb,#22c55e);width:0}
+    .side-toggle{display:flex;border-radius:12px;background:rgba(255,255,255,.06);padding:5px;gap:6px}
+    .side-toggle button{flex:1;border-radius:10px;padding:14px 12px;font-weight:900;letter-spacing:.3px;border:2px solid transparent;transition:.2s}
+    .side-toggle .up{background:rgba(34,197,94,.09);color:#bbf7d0}
+    .side-toggle .down{background:rgba(239,68,68,.09);color:#fecaca}
+    .side-toggle .up.active{background:rgba(34,197,94,.2);color:#ecfdf5;border-color:#34d399;box-shadow:0 0 0 2px rgba(52,211,153,.25) inset}
+    .side-toggle .down.active{background:rgba(239,68,68,.2);color:#fee2e2;border-color:#f87171;box-shadow:0 0 0 2px rgba(248,113,113,.25) inset}
+    .money{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px;color:#fff}
+    .money:focus{outline:none;border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.15)}
+    .toast{position:fixed;right:18px;bottom:18px;padding:10px 12px;border-radius:10px;background:#0f1724;color:#fff;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+    .scroll-y{max-height:calc(48vh);overflow:auto}
+    .navbtn{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.07);font-weight:800}
+    .navbtn:hover{background:rgba(255,255,255,.12)}
+    .small-muted{font-size:12px;color:var(--muted)}
+    #timerBig{font-weight:900;font-size:18px;color:#a5f3fc}
+    .is-disabled{opacity:.5;pointer-events:none;filter:grayscale(20%)}
+
+    /* Rank + Balance gradient card */
+    .rb-wrap{border-radius:14px;padding:2px;background:linear-gradient(90deg,#38bdf8,#6366f1,#a855f7);box-shadow:0 8px 24px rgba(99,102,241,.35)}
+    .rb-inner{background:#0d1428;border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:10px}
+    .sep{width:1px;height:22px;background:rgba(255,255,255,.15)}
+
+    /* Deposit STK pill */
+    .stk-pill{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--gold);border-radius:999px;padding:6px 10px;background:rgba(251,191,36,.06);color:#fde68a;font-weight:800}
+    .stk-pill button{background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.4);color:#fff;padding:4px 8px;border-radius:999px;font-weight:900}
+    .stk-pill button:hover{background:rgba(251,191,36,.25)}
+
+    /* Center Big Result Overlay */
+    #resultOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:10000}
+    .res-box{min-width:320px;max-width:88vw;padding:24px 26px;border-radius:20px;text-align:center;box-shadow:0 30px 120px rgba(0,0,0,.55);font-weight:900;font-size:36px;line-height:1.1}
+    .res-win{background:linear-gradient(180deg,#16a34a,#059669);color:#ecfeff}
+    .res-lose{background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff5f5}
+    .res-draw{background:linear-gradient(180deg,#2563eb,#1d4ed8);color:#eaf2ff}
+    .res-sub{font-size:14px;opacity:.9;margin-top:10px;font-weight:700}
+    .res-amt{font-size:22px;margin-top:6px}
+
+    /* Modal basics */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:50}
+    .modal.show{display:flex}
+    .modal .card{width:560px}
+
+    /* Table minimal */
+    table{border-collapse:collapse;width:100%}
+    th,td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left}
+    thead th{font-size:12px;color:#a5b4fc;text-transform:uppercase;letter-spacing:.08em}
+
+    /* OHLC HUD */
+    .ohlc-hud{position:absolute;left:14px;top:14px;z-index:10;display:flex;gap:10px;flex-wrap:wrap}
+    .ohlc-badge{font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:6px 8px;line-height:1.15;color:#dbeafe;font-weight:700}
+    .ohlc-badge b{color:#fff}
+    .ohlc-up{color:#86efac}
+    .ohlc-down{color:#fecaca}
+
+    /* Ẩn hẳn CSKH */
+    .cs-wrapper{display:none !important;}
+
+    /* Tiny withdraw notif */
+    .notif-wrapper{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:6px;width:160px;font-family:Arial, sans-serif}
+    .notif{display:flex;align-items:center;gap:6px;background:#10b981;color:white;border-radius:6px;padding:4px 6px;box-shadow:0 2px 6px rgba(0,0,0,0.2);animation:fadeIn .2s ease;font-size:11px}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)}}
+    .avatar{width:16px;height:16px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .avatar svg{width:10px;height:10px;fill:#10b981}
+
+    /* Mobile tweaks */
+    input, select, textarea { font-size:16px; } /* ngăn iOS auto-zoom */
+    @media (max-width: 768px){
+      .card{ padding:10px; box-shadow:0 6px 18px rgba(2,6,23,.28); }
+      header .navbtn{ padding:8px 10px; }
+      .rb-inner{ gap:8px; padding:6px 10px; }
+      .grid.grid-cols-4{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .modal .card{ width:100% !important; max-width:100% !important; height:100svh; height:calc(var(--vh) * 100); border-radius:0; overflow:auto; }
+      th,td{ padding:5px 6px; }
+    }
+    .card,.notif{will-change:transform,opacity}
+
+    /* ============================
+       PC MODE TRÊN DI ĐỘNG
+       ============================ */
+    .dom-scroll{ overflow-x: hidden; }
+    body.pc-mode .dom-scroll{ overflow-x: auto; }
+    @media (max-width: 768px){
+      body.pc-mode #domInner{
+        width: 1200px;          /* bề rộng “giống PC” */
+        max-width: none;
+        display: grid !important;
+        grid-template-columns: 360px 1fr; /* Aside + Main */
+        gap: 20px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- HEADER -->
+  <header class="px-4 py-3 bg-[#0d1428] sticky top-0 z-50 shadow">
+    <div class="max-w-[1400px] mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl overflow-hidden">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/2/21/Flag_of_Vietnam.svg" class="w-full h-full object-cover" alt="VN">
+        </div>
+        <div class="text-lg font-bold"> SÀN MÔ PHỎNG </div>
+      </div>
+
+      <!-- Rank + Balance + PC mode -->
+      <div class="flex items-center gap-3">
+        <div class="rb-wrap">
+          <div class="rb-inner">
+            <div id="rankText" class="text-xs font-black text-white/90">Rank: —</div>
+            <div class="sep"></div>
+            <div class="text-[11px] text-blue-200/80">Số dư</div>
+            <div id="balanceText" class="text-xl font-extrabold ml-1">0 đ</div>
+          </div>
+        </div>
+        <button id="openDep" class="navbtn">Nạp</button>
+        <button id="openWit" class="navbtn">Rút</button>
+        <!-- Nút bật PC Mode -->
+        <button id="togglePCMode" class="navbtn hidden md:inline-block">Chế độ PC</button>
+        <button id="togglePCModeMobile" class="navbtn md:hidden">PC</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN (bọc trong dom-scroll để có thể kéo ngang trên mobile khi bật PC mode) -->
+  <div class="dom-scroll">
+    <div id="domInner" class="max-w-[1400px] mx-auto p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <!-- RIGHT / ASIDE -->
+      <aside class="space-y-5 order-first lg:order-none">
+
+        <div class="card">
+          <h3 class="text-lg font-semibold">Đặt cược</h3>
+          <div class="mt-3">
+            <div class="side-toggle" id="betSideToggle">
+              <button id="btnUp" class="up active" aria-pressed="true">TĂNG</button>
+              <button id="btnDown" class="down" aria-pressed="false">GIẢM</button>
+            </div>
+
+            <div id="betWindowMsg" class="mt-2 text-xs font-bold text-emerald-300">ĐANG MỞ CƯỢC (20s đầu)</div>
+
+            <div class="mt-3 grid grid-cols-4 gap-2 text-sm" id="quickAmts">
+              <button data-amt="5000" class="btn btn-ghost">5k</button>
+              <button data-amt="10000" class="btn btn-ghost">10k</button>
+              <button data-amt="100000" class="btn btn-ghost">100k</button>
+              <button data-amt="1000000" class="btn btn-ghost">1tr</button>
+              <button data-amt="10000000" class="btn btn-ghost">10tr</button>
+              <button data-amt="100000000" class="btn btn-ghost">100tr</button>
+              <button data-amt="1000000000" class="btn btn-ghost">1 tỷ</button>
+              <button id="btnAllin" class="btn btn-ghost">All-in</button>
+            </div>
+
+            <div class="mt-3 flex items-center gap-2">
+              <input id="betAmount" type="number" min="1" placeholder="Số tiền muốn đặt" class="money flex-1" />
+              <button id="betSubmit" class="btn btn-prim">Đặt</button>
+            </div>
+
+            <p class="text-xs muted mt-2">Đúng → nhận <b>gấp đôi</b>. Sai → mất tiền.</p>
+            <div id="myBetLine" class="mt-2 text-xs"></div>
+            <div id="totalBetLine" class="mt-1 text-xs text-blue-300"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="text-lg font-semibold">Thông tin giá</h3>
+          <div class="mt-2 space-y-1">
+            <div class="flex items-center justify-between"><span class="muted">Giá hiện tại</span><b id="pxNow2">-</b></div>
+            <div class="flex items-center justify-between"><span class="muted">Tăng/Giảm</span><b id="pxDiff">-</b></div>
+            <div class="flex items-center justify-between"><span class="muted">Biên độ (1p)</span><b id="pxRange">-</b></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="text-lg font-semibold">Người chơi</h3>
+          <div class="text-xs muted">Sinh ngẫu nhiên • 20s đầu • 1–4 người/nhịp • 10k→1tr/người</div>
+          <div id="peopleBox" class="mt-2 scroll-y space-y-2" style="max-height:300px"></div>
+        </div>
+
+      </aside>
+
+      <!-- left + middle / MAIN -->
+      <main class="lg:col-span-2 space-y-5">
+
+        <!-- CHART -->
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold">Biểu đồ THỊ TRƯỜNG</h2>
+              <div class="small-muted">Mô phỏng 1 phút / 1 nến</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs text-blue-200">Cặp: BTC</div>
+              <div class="text-xs">Giá: <b id="pxNow">-</b></div>
+            </div>
+          </div>
+
+          <div class="kline-holder mt-3 relative">
+            <div id="chartLW"></div>
+
+            <!-- OHLC + Volume HUD -->
+            <div class="ohlc-hud" id="ohlcHUD">
+              <div class="ohlc-badge">O: <b id="hudO">—</b></div>
+              <div class="ohlc-badge">H: <b id="hudH">—</b></div>
+              <div class="ohlc-badge">L: <b id="hudL">—</b></div>
+              <div class="ohlc-badge">C: <b id="hudC">—</b></div>
+              <div class="ohlc-badge">Vol: <b id="hudV">—</b></div>
+            </div>
+
+            <div class="absolute right-4 top-4 text-xs text-blue-200 bg-white/5 px-3 py-1 rounded" id="timerBig">60s</div>
+          </div>
+        </div>
+
+        <!-- PHASE + STATS -->
+        <div class="card grid md:grid-cols-2 gap-4">
+          <div class="soft">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">Phiên</h3>
+              <span id="roundBadge" class="px-2 py-1 rounded bg-white/10 text-xs">OPEN</span>
+            </div>
+            <div class="mt-2 progress"><div id="roundProgress"></div></div>
+            <div class="mt-2 text-sm">Còn: <b id="roundCountdown">--:--</b> • Pha kế: <b id="phaseNext">KẾT QUẢ</b></div>
+            <div class="mt-1 text-xs text-blue-200">Mỗi vòng 60s: 20s mở đặt, 40s chờ kết quả. Nghỉ 10s rồi mở vòng mới.</div>
+          </div>
+
+          <div class="soft">
+            <h3 class="font-semibold">Tổng hợp</h3>
+            <div class="grid grid-cols-2 gap-2 text-sm mt-2">
+              <div class="ghost p-2 rounded">
+                <div class="text-xs muted">Trong 100 nến gần nhất</div>
+                <div class="mt-1">TĂNG: <b id="statUp">0</b></div>
+                <div>GIẢM: <b id="statDown">0</b></div>
+              </div>
+              <div class="ghost p-2 rounded">
+                <div class="text-xs muted">Phiên hiện tại</div>
+                <div class="mt-1">Người đặt: <b id="statPeople">0</b></div>
+                <div>Tăng: <b id="statLong">0</b> đ<br/>Giảm: <b id="statShort">0</b> đ</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOG & mini -->
+        <div class="card">
+          <h3 class="text-lg font-semibold">Lịch sử & Giao dịch</h3>
+          <div class="grid md:grid-cols-2 gap-4 mt-3">
+            <div>
+              <h4 class="font-semibold">Lịch sử phiên</h4>
+              <div class="text-xs muted mb-1">Giới hạn 10 bản ghi.</div>
+              <div id="roundLog" class="scroll-y" style="max-height:260px"></div>
+            </div>
+            <div>
+              <h4 class="font-semibold">Nạp/Rút gần đây</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <div class="text-xs muted">Nạp</div>
+                  <div id="miniDep" class="scroll-y" style="max-height:110px"></div>
+                </div>
+                <div>
+                  <div class="text-xs muted">Rút</div>
+                  <div id="miniWit" class="scroll-y" style="max-height:110px"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL Nạp -->
+  <div id="modalDep" class="modal">
+    <div class="card">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Nạp tiền</h3>
+        <button class="navbtn" onclick="closeDep()">Đóng</button>
+      </div>
+
+      <!-- Bank Info + STK pill + copy -->
+      <div class="mt-2 text-xs">
+        <span class="muted">Ngân hàng:</span> <b>MB BANK</b>
+        <span class="mx-2">•</span>
+        <span class="muted">Tên:</span> <b>DINH DUY QUANG</b>
+      </div>
+      <div class="mt-2">
+        <span class="stk-pill">
+          <span>STK: <b id="stkNumber">1108111111</b></span>
+          <button id="btnCopyStk" title="Sao chép STK">Sao chép</button>
+        </span>
+      </div>
+
+      <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
+        <button class="navbtn amt" data-v="50000">50k</button>
+        <button class="navbtn amt" data-v="100000">100k</button>
+        <button class="navbtn amt" data-v="500000">500k</button>
+        <button class="navbtn amt" data-v="1000000">1 triệu</button>
+        <button class="navbtn amt" data-v="10000000">10 triệu</button>
+        <button class="navbtn amt" data-v="50000000">50 triệu</button>
+        <button class="navbtn amt" data-v="100000000">100 triệu</button>
+      </div>
+      <div class="mt-3">
+        <input id="depSel" class="money w-full" type="text" inputmode="numeric" placeholder="Số tiền nạp (VND, có dấu ,)" />
+        <div class="text-xs text-blue-200 mt-1">Ví dụ: 1,000,000</div>
+      </div>
+      <div class="mt-3 text-sm">
+        Tải ảnh biên lai chuyển khoản (bắt buộc):
+        <input id="depFile" type="file" accept="image/*" class="block mt-2" />
+        <img id="depPreview" class="hidden mt-2 w-full h-40 object-contain rounded" />
+      </div>
+      <div class="mt-3">
+        <button id="depSubmit" class="btn btn-up w-full">Gửi yêu cầu nạp</button>
+        <div class="text-xs muted mt-1">Yêu cầu sẽ được duyệt sau 40 giây, tiền mới cộng vào số dư.</div>
+      </div>
+      <div class="mt-3">
+        <h4 class="font-semibold">Danh sách yêu cầu nạp</h4>
+        <div id="depList" class="scroll-y" style="max-height:200px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL Rút -->
+  <div id="modalWit" class="modal">
+    <div class="card">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Rút tiền</h3>
+        <button class="navbtn" onclick="closeWit()">Đóng</button>
+      </div>
+      <div class="mt-3 grid gap-2">
+        <input id="wBank" class="money" placeholder="Tên ngân hàng" />
+        <input id="wAcc" class="money" placeholder="Số tài khoản" />
+        <input id="wName" class="money" placeholder="Tên chủ tài khoản" />
+        <input id="wAmount" class="money" type="number" placeholder="Số tiền rút (VND)" />
+        <button id="wBtn" class="btn btn-down">Tạo lệnh rút</button>
+        <div class="text-xs muted">Trạng thái: <b>Đang xử lý</b> → <b>Thành công</b> sau ~1 giờ. (Tối thiểu 5,000,000 đ)</div>
+      </div>
+      <div class="mt-3">
+        <h4 class="font-semibold">Danh sách rút</h4>
+        <div id="wList" class="scroll-y" style="max-height:220px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BIG RESULT OVERLAY -->
+  <div id="resultOverlay">
+    <div id="resultBox" class="res-box res-win">
+      <div id="resTitle">THẮNG</div>
+      <div id="resAmt" class="res-amt">+0 đ</div>
+      <div id="resSub" class="res-sub"></div>
+    </div>
+  </div>
+
+  <!-- (CSKH đã ẩn bằng CSS) -->
+  <div class="cs-wrapper">
+    <div class="cs-button" id="csBtn">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="#fff"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></svg>
+    </div>
+    <div class="cs-popup" id="csPopup">
+      <a href="#" target="_blank" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:#111;margin-bottom:8px;padding:6px;border-radius:6px">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg" alt="FB" width="20" height="20"> Facebook
+      </a>
+      <a href="tel:0000000000" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:#111;padding:6px;border-radius:6px">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6c/Phone_font_awesome.svg" alt="Call" width="20" height="20"> Gọi
+      </a>
+    </div>
+  </div>
+
+  <!-- Tiny withdraw notifications -->
+  <div class="notif-wrapper" id="notifWrapper"></div>
+
+  <!-- SCRIPT -->
+  <script>
+  // ============================================================
+  // Constants, helpers, state
+  // ============================================================
+  const STORAGE_KEY = 'bo_game_full_final_1000';
+  const ROUND_SECONDS = 60;
+  const BET_OPEN_SECONDS = 20;
+  const COOLDOWN_SECONDS = 10;
+  const MAX_CANDLES = 50;
+  const MAX_STAT = 100;
+  const MAX_LOG = 200;
+  const DEPOSIT_DELAY = 40 * 1000;              // 40 giây duyệt nạp
+  const WITHDRAW_DELAY = 60 * 60 * 1000;        // 1 giờ duyệt rút
+  const WITHDRAW_MIN = 5_000_000;               // tối thiểu 5 triệu
+
+  const el = id => document.getElementById(id);
+  const fmt = v => Number(v||0).toLocaleString('vi-VN');
+  const nowText = () => new Date().toLocaleString('vi-VN');
+  const rand = (a,b) => Math.random()*(b-a)+a;
+  const randi = (a,b) => Math.floor(rand(a,b+1));
+  const coin50 = () => Math.random()<0.5;
+
+  function toast(msg, bg){
+    const d = document.createElement('div');
+    d.className = 'toast';
+    d.style.background = bg || '#111827';
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(()=> d.remove(), 3500);
+  }
+
+  // ============================================================
+  // State & storage
+  // ============================================================
+  const defaultState = {
+    balance: 0,                // VỐN MẶC ĐỊNH 0 đ
+    candles: [],
+    stat: [],
+    round: { index: 1, phase: 'OPEN', left: ROUND_SECONDS, myBets:[], sumLong:0, sumShort:0, people:0 },
+    deposits: [],
+    withdrawals: [],
+    roundLog: []
+  };
+
+  let state = load() || bootstrap();
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return null;
+  }
+  function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
+
+  function bootstrap(){
+    const startPrice = 2_650_000_000;
+    const arr = genInitialCandles(MAX_CANDLES - 1, startPrice, 0.008);
+    const stat = arr.map((c,i)=> i===0? true : (arr[i].c >= arr[i-1].c)).slice(-MAX_STAT);
+    return {...defaultState, candles: arr, stat};
+  }
+
+  // ============================================================
+  // Lightweight Charts init (BINANCE STYLE)
+  // ============================================================
+  let chart = null, series = null, chartRO = null;
+
+  function initChart(){
+    // Màu sắc & style giống Binance
+    const BINANCE = {
+      bg:   '#0B0E11',
+      text: '#B7BDC6',
+      grid: '#1F2329',
+      axis: '#202630',
+      cross:'#848E9C',
+      up:   '#0ECB81',
+      down: '#F6465D'
+    };
+
+    chart = LightweightCharts.createChart(el('chartLW'), {
+      layout: {
+        background: { color: BINANCE.bg },
+        textColor: BINANCE.text,
+      },
+      grid: {
+        vertLines: { color: BINANCE.grid },
+        horzLines: { color: BINANCE.grid },
+      },
+      rightPriceScale: {
+        borderVisible: true,
+        borderColor: BINANCE.axis,
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+        borderColor: BINANCE.axis,
+        barSpacing: 10,     // nến “dày” hơn
+        rightOffset: 6,
+      },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        vertLine: {
+          color: BINANCE.cross,
+          width: 1,
+          style: 0,
+          labelBackgroundColor: BINANCE.axis,
+        },
+        horzLine: {
+          color: BINANCE.cross,
+          width: 1,
+          style: 0,
+          labelBackgroundColor: BINANCE.axis,
+        },
+      },
+    });
+
+    // Nến xanh/đỏ chuẩn Binance; viền & râu cùng màu thân
+    series = chart.addCandlestickSeries({
+      upColor: BINANCE.up,
+      downColor: BINANCE.down,
+      wickUpColor: BINANCE.up,
+      wickDownColor: BINANCE.down,
+      borderUpColor: BINANCE.up,
+      borderDownColor: BINANCE.down,
+      priceLineColor: BINANCE.cross,
+      priceLineWidth: 1,
+      priceLineVisible: true,
+      lastValueVisible: true,
+    });
+
+    syncChart();
+    setTimeout(()=> attachChartResizeObserver(), 0);
+  }
+
+  function syncChart(){
+    if(!series) return;
+    const data = state.candles.map(c=>({ time: Math.floor(c.t/1000), open:c.o, high:c.h, low:c.l, close:c.c }));
+    series.setData(data);
+    updatePriceUI();
+    renderOHLC();
+  }
+
+  function updatePriceUI(){
+    const k = state.candles[state.candles.length-1];
+    if(!k){
+      el('pxNow').textContent='-'; el('pxNow2').textContent='-'; el('pxDiff').textContent='-'; el('pxRange').textContent='-';
+      return;
+    }
+    const diff = k.c - k.o;
+    el('pxNow').textContent = fmt(k.c) + ' đ';
+    el('pxNow2').textContent = fmt(k.c) + ' đ';
+    el('pxDiff').textContent = (diff>=0?'+':'') + fmt(diff) + ' đ';
+    el('pxDiff').className = diff>=0? 'text-emerald-300' : 'text-rose-300';
+    el('pxRange').textContent = `${fmt(k.l)} → ${fmt(k.h)}`;
+  }
+
+  // OHLC HUD render
+  function renderOHLC(){
+    const last = state.candles[state.candles.length-1];
+    if(!last){
+      ['hudO','hudH','hudL','hudC','hudV'].forEach(id=> el(id).textContent='—');
+      return;
+    }
+    const up = last.c >= last.o;
+    el('hudO').textContent = fmt(last.o);
+    el('hudH').textContent = fmt(last.h);
+    el('hudL').textContent = fmt(last.l);
+    el('hudC').textContent = fmt(last.c);
+    el('hudV').textContent = last.v!=null ? Number(last.v).toLocaleString('en-US') : '—';
+    el('hudC').parentElement.classList.toggle('ohlc-up', up);
+    el('hudC').parentElement.classList.toggle('ohlc-down', !up);
+  }
+
+  // ============================================================
+  // Candle helpers
+  // ============================================================
+  function genInitialCandles(n, startPrice, vol=0.01){
+    const out=[]; let p=startPrice;
+    for(let i=0;i<n;i++){
+      const c = makeCandleFrom(p, vol);
+      out.push(c); p = c.c;
+    }
+    const now = Date.now();
+    for(let i=0;i<out.length;i++){
+      out[i].t = now - (out.length - i) * 60 * 1000;
+    }
+    return out;
+  }
+
+  function makeCandleFrom(prevClose, vol){
+    const up = coin50();
+    const range = prevClose * rand(vol*0.5, vol*1.2);
+    const body = range * rand(0.3, 0.9);
+    const wick = range - body;
+    let o = prevClose, h, l, c;
+    if(up){ c = prevClose + body; h = c + wick * rand(0.2,0.8); l = prevClose - wick * rand(0.1,0.5); }
+    else { c = prevClose - body; l = c - wick * rand(0.2,0.8); h = prevClose + wick * rand(0.1,0.5); }
+    const hi = Math.max(o,h,c); const lo = Math.min(o,l,c);
+    return { t: Date.now(), o: Math.round(o), h: Math.round(hi), l: Math.round(lo), c: Math.round(c), v: randi(50, 5000) };
+  }
+
+  // ============================================================
+  // LIVE candle logic — 1 cây/60s, 20s được đặt, 40s chờ kết quả
+  // ============================================================
+  let live = { active:false, ticks:0, scenario:0, timeSec:null, intervalId:null };
+
+  function smoothStep(prev, scenario){
+    const amp = Math.max(1, Math.round(prev * 0.0005));
+    if(scenario === 0) return prev + Math.random() * amp;       // drift up
+    if(scenario === 1) return prev - Math.random() * amp;       // drift down
+    return prev + (Math.random() - 0.5) * amp * 1.2;            // random
+  }
+
+  function canBet(){ // 20s đầu
+    return state.round.phase === 'OPEN' && state.round.left > (ROUND_SECONDS - BET_OPEN_SECONDS);
+  }
+
+  function startLiveCandle(){
+    if(live.active) return;
+    live.active = true;
+    live.ticks = 0;
+    live.scenario = randi(0,2);
+
+    const last = state.candles[state.candles.length - 1];
+    const base = last ? last.c : 2_650_000_000;
+    const open = Math.round(base);
+    const nowSec = Math.floor(Date.now()/1000);
+    live.timeSec = (last ? Math.floor(last.t/1000) : nowSec) + 60;
+
+    const c = { t: live.timeSec * 1000, o: open, h: open, l: open, c: open, v: 0 };
+    state.candles.push(c);
+    if(state.candles.length > MAX_CANDLES) state.candles.shift();
+
+    syncChart();
+
+    state.round.phase = 'OPEN';
+    state.round.left = ROUND_SECONDS;
+    state.round.myBets = state.round.myBets || [];
+    save(); renderAll();
+
+    live.intervalId = setInterval(()=>{
+      live.ticks++;
+      const k = state.candles[state.candles.length - 1];
+      if(!k) return;
+
+      // tick giá
+      let next = Math.round( smoothStep(k.c, live.scenario) );
+      if(next === k.c) next += (Math.random()<0.5?1:-1) * randi(1,10);
+      k.c = next;
+      if(k.c > k.h) k.h = k.c;
+      if(k.c < k.l) k.l = k.c;
+      k.t = live.timeSec * 1000;
+      k.v = (k.v||0) + randi(1, 30);
+
+      series.update({ time: live.timeSec, open:k.o, high:k.h, low:k.l, close:k.c });
+      renderOHLC();
+      updatePriceUI();
+
+      state.round.left = Math.max(0, ROUND_SECONDS - live.ticks);
+      el('timerBig').innerText = `${state.round.left}s`;
+      renderRoundUI();
+
+      // 20s đầu: rót người và tiền tiến tới mục tiêu + cập nhật UI
+      if (canBet()) {
+        simulateRandomPlayersOnce();
+        renderStats();
+      }
+
+      if(live.ticks >= ROUND_SECONDS){
+        clearInterval(live.intervalId);
+        live.intervalId = null;
+        live.active = false;
+        finalizeLiveCandle();
+      }
+    }, 1000);
+  }
+
+  // ============================================================
+  // KẾT QUẢ: Ưu tiên người chơi thắng 90%
+  // ============================================================
+  function finalizeLiveCandle(){
+    const k = state.candles[state.candles.length - 1];
+    if(!k) return;
+
+    // Tổng vé của riêng người chơi trong phiên này
+    const myLong  = state.round.myBets.filter(b=>b.side==='UP'  ).reduce((a,b)=>a+b.amount,0);
+    const myShort = state.round.myBets.filter(b=>b.side==='DOWN').reduce((a,b)=>a+b.amount,0);
+
+    // Xác định phía mong muốn theo người chơi
+    let desiredSide;
+    if (myLong === 0 && myShort === 0) {
+      // Không đặt -> fallback: theo số đông toàn phiên
+      desiredSide = (state.round.sumLong === state.round.sumShort)
+        ? (Math.random()<0.5 ? 'UP' : 'DOWN')
+        : (state.round.sumLong > state.round.sumShort ? 'UP' : 'DOWN');
+    } else if (myLong > myShort) {
+      desiredSide = 'UP';
+    } else if (myShort > myLong) {
+      desiredSide = 'DOWN';
+    } else {
+      // Đặt 2 chiều bằng nhau -> xét số đông nhưng loại trừ phần bạn
+      const othersLong  = Math.max(0, state.round.sumLong  - myLong);
+      const othersShort = Math.max(0, state.round.sumShort - myShort);
+      desiredSide = (othersLong === othersShort)
+        ? (Math.random()<0.5 ? 'UP' : 'DOWN')
+        : (othersLong > othersShort ? 'UP' : 'DOWN');
+    }
+
+    // Tỉ lệ thắng người chơi = 90%
+    const actual = (Math.random() < 0.9) ? desiredSide : (desiredSide === 'UP' ? 'DOWN' : 'UP');
+
+    // Ép close theo kết quả
+    const step = randi(2000, 70000);
+    if(actual === 'UP') k.c = Math.max(k.o + step, k.c);
+    else k.c = Math.min(k.o - step, k.c);
+    k.h = Math.max(k.h, k.c, k.o);
+    k.l = Math.min(k.l, k.c, k.o);
+
+    series.update({ time: live.timeSec, open:k.o, high:k.h, low:k.l, close:k.c });
+    renderOHLC();
+    updatePriceUI();
+
+    // Cập nhật thống kê nến
+    state.stat.push(k.c >= k.o);
+    if(state.stat.length > MAX_STAT) state.stat.shift();
+
+    // Tính thưởng/phạt cá nhân
+    const winBet  = state.round.myBets.filter(b=>b.side===actual);
+    const loseBet = state.round.myBets.filter(b=>b.side!==actual);
+    const win  = winBet.reduce((a,b)=>a+b.amount,0);
+    const lose = loseBet.reduce((a,b)=>a+b.amount,0);
+    const profit = win * 2;
+    if(win > 0) state.balance += profit;
+
+    // Log phiên
+    state.roundLog.unshift({
+      i: state.round.index, time: nowText(), res: actual,
+      long: state.round.sumLong, short: state.round.sumShort, people: state.round.people,
+      myWin: win, myLose: lose
+    });
+    if(state.roundLog.length > MAX_LOG) state.roundLog = state.roundLog.slice(0, MAX_LOG);
+
+    // Reset vé phiên
+    state.round.myBets = [];
+    state.round.sumLong = 0;
+    state.round.sumShort = 0;
+
+    save(); renderAll();
+
+    // Overlay kết quả
+    if((win + lose) > 0){
+      if(win > 0 && lose === 0) showResultOverlay('WIN',  profit, 0,    actual);
+      else if(win > 0 && lose > 0) showResultOverlay('DRAW', profit, lose, actual);
+      else showResultOverlay('LOSE', 0, lose, actual);
+    } else {
+      hideResultOverlay();
+    }
+
+    if(win > 0 && lose === 0) toast(`Thắng! +${fmt(profit)} đ`, 'linear-gradient(90deg,#22c55e,#16a34a)');
+    else if(win > 0 && lose > 0) toast(`Hoà lãi: nhận ${fmt(profit)} đ`, '#2563eb');
+    else if(lose > 0) toast(`Thua rồi! -${fmt(lose)} đ`, 'linear-gradient(90deg,#ef4444,#dc2626)');
+
+    // cooldown ngắn 10s rồi mở vòng kế
+    state.round.phase = 'COOLDOWN';
+    state.round.left = COOLDOWN_SECONDS;
+    renderRoundUI();
+
+    const cd = setInterval(()=>{
+      state.round.left--;
+      renderRoundUI();
+      if(state.round.left <= 0){
+        clearInterval(cd);
+        state.round.index++;
+        startRound();
+      }
+    }, 1000);
+  }
+
+  // ============================================================
+  // Round lifecycle
+  // ============================================================
+  function startRound(){
+    if(live.intervalId) { clearInterval(live.intervalId); live.intervalId = null; }
+    live.active = false;
+
+    state.round.phase = 'OPEN';
+    state.round.left = ROUND_SECONDS;
+
+    // reset vé cá nhân
+    state.round.myBets = [];
+
+    // MỤC TIÊU NGẪU NHIÊN cho 20s mở cược
+    state.round._targetPeople = randi(1_000, 10_000);
+    state.round._targetLong   = randi(2_000_000_000, 10_000_000_000);
+    state.round._targetShort  = randi(2_000_000_000, 10_000_000_000);
+
+    // Bắt đầu từ 0 và sẽ tăng dần trong 20s đầu
+    state.round.people   = 0;
+    state.round.sumLong  = 0;
+    state.round.sumShort = 0;
+
+    save(); renderAll();
+    renderStats(); // hiển thị ngay giá trị ban đầu
+
+    startLiveCandle();
+  }
+
+  // ============================================================
+  // Bot người chơi: rót đều tới mục tiêu trong 20s đầu
+  // ============================================================
+  function simulateRandomPlayersOnce(){
+    // số giây còn lại trong cửa đặt (20s đầu)
+    const openWindowLeft = state.round.left - (ROUND_SECONDS - BET_OPEN_SECONDS);
+    if (openWindowLeft <= 0) return;
+
+    // còn bao nhiêu để đạt mục tiêu
+    const remainPeople = Math.max(0, (state.round._targetPeople || 0) - state.round.people);
+    const remainLong   = Math.max(0, (state.round._targetLong   || 0) - state.round.sumLong);
+    const remainShort  = Math.max(0, (state.round._targetShort  || 0) - state.round.sumShort);
+
+    // mỗi giây chia phần còn lại + chút ngẫu nhiên để tự nhiên
+    const jitter = (m) => Math.max(1, Math.round(m * rand(0.6, 1.4)));
+
+    const incPeople = Math.min(remainPeople, jitter(remainPeople / openWindowLeft));
+    const incLong   = Math.min(remainLong,   jitter(remainLong   / openWindowLeft));
+    const incShort  = Math.min(remainShort,  jitter(remainShort  / openWindowLeft));
+
+    state.round.people   += incPeople;
+    state.round.sumLong  += incLong;
+    state.round.sumShort += incShort;
+  }
+
+  // ============================================================
+  // Betting & UI wiring
+  // ============================================================
+  let currentSide = 'UP';
+  function setSide(s){
+    currentSide = s;
+    el('btnUp').classList.toggle('active', s === 'UP');
+    el('btnDown').classList.toggle('active', s === 'DOWN');
+    el('btnUp').setAttribute('aria-pressed', s==='UP' ? 'true' : 'false');
+    el('btnDown').setAttribute('aria-pressed', s==='DOWN' ? 'true' : 'false');
+    renderMyBetLine();
+  }
+  function addBetAmount(v){
+    const current = Number(el('betAmount').value||0);
+    el('betAmount').value = current + Number(v);
+  }
+  function allin(){ el('betAmount').value = state.balance; }
+  function submitBet(){
+    if(!canBet()) return alert('Chỉ được đặt trong 20 giây đầu của mỗi phiên.');
+    const amt = Math.max(1, Number(el('betAmount').value||0));
+    if(amt <= 0) return alert('Nhập số tiền hợp lệ');
+    if(state.balance < amt) return alert('Số dư không đủ');
+    state.balance -= amt;
+    state.round.myBets.push({ side: currentSide, amount: amt });
+    if(currentSide === 'UP') state.round.sumLong += amt; else state.round.sumShort += amt;
+    state.round.people++;
+    el('betAmount').value = '';
+    save(); renderAll();
+  }
+
+  // ============================================================
+  // Deposit / Withdraw
+  // ============================================================
+  function openDep(){ el('modalDep').classList.add('show'); }
+  function closeDep(){ el('modalDep').classList.remove('show'); }
+  function openWit(){ el('modalWit').classList.add('show'); }
+  function closeWit(){ el('modalWit').classList.remove('show'); }
+
+  function formatDepAmount(input){
+    const oldSel = input.selectionStart;
+    let raw = (input.value || '').replace(/,/g, '').replace(/\D/g, '');
+    if(raw === '') { input.value=''; return; }
+    const withCommas = Number(raw).toLocaleString('en-US');
+    input.value = withCommas;
+    input.selectionStart = input.selectionEnd = input.value.length;
+  }
+  function getDepAmount(){ const val = (el('depSel').value||'').replace(/,/g,'').trim(); return Number(val)||0; }
+  function setDepValue(v){ el('depSel').value = Number(v||0).toLocaleString('en-US'); }
+
+  async function copySTK(){
+    const txt = el('stkNumber').textContent.trim();
+    try{
+      if(navigator.clipboard?.writeText){ await navigator.clipboard.writeText(txt); }
+      else{
+        const ta = document.createElement('textarea');
+        ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      }
+      toast('Đã sao chép STK', 'linear-gradient(90deg,#f59e0b,#fbbf24)');
+    }catch(e){ alert('Không thể sao chép, vui lòng copy tay.'); }
+  }
+
+  function deposit(){
+    const amt = getDepAmount();
+    const file = el('depFile').files[0];
+    if(amt <= 0) return alert('Chọn số tiền hợp lệ');
+    if(!file) return alert('Vui lòng tải ảnh biên lai');
+
+    const tx = { id: Date.now(), amount: amt, time: nowText(), status: 'ĐANG DUYỆT' };
+    state.deposits.unshift(tx); save(); renderDeposits(); renderMini();
+    toast('Yêu cầu nạp đã gửi. Chờ 40s để duyệt...', '#2563eb');
+    closeDep();
+
+    setTimeout(()=>{
+      const t = state.deposits.find(x=>x.id===tx.id);
+      if(t){
+        t.status='THÀNH CÔNG';
+        state.balance += t.amount;
+        save(); renderAll();
+        toast(`Nạp ${fmt(t.amount)} đ thành công`, '#22c55e');
+        try{
+          el('depFile').value = '';
+          el('depPreview').src = '';
+          el('depPreview').classList.add('hidden');
+          el('depSel').value = '';
+        }catch(e){}
+      }
+    }, DEPOSIT_DELAY);
+  }
+
+  function withdraw(){
+    const bank = el('wBank').value.trim();
+    const acc = el('wAcc').value.trim();
+    const name = el('wName').value.trim();
+    const amt = Math.max(0, Number(el('wAmount').value||0));
+    if(!bank||!acc||!name||amt<=0) return alert('Điền đủ thông tin');
+    if(amt < WITHDRAW_MIN) return alert('Số tiền rút tối thiểu 5,000,000 đ');
+    if(state.balance < amt) return alert('Số dư không đủ');
+
+    state.balance -= amt;
+    const tx = { id: Date.now(), amount: amt, bank, acc, name, time: nowText(), status: 'ĐANG XỬ LÝ' };
+    state.withdrawals.unshift(tx); save(); renderAll();
+    toast('Tạo lệnh rút thành công. Đang xử lý...', '#f59e0b');
+
+    setTimeout(()=>{
+      const t = state.withdrawals.find(x=>x.id===tx.id);
+      if(t){ t.status='THÀNH CÔNG'; save(); renderAll(); toast('Rút tiền THÀNH CÔNG', '#22c55e'); }
+    }, WITHDRAW_DELAY);
+  }
+
+  // ============================================================
+  // Big Result Overlay
+  // ============================================================
+  let resultTimer = null;
+  function showResultOverlay(type, profit=0, lose=0, side='UP'){
+    const box = el('resultBox');
+    const overlay = el('resultOverlay');
+    const title = el('resTitle');
+    const amt = el('resAmt');
+    const sub = el('resSub');
+
+    box.classList.remove('res-win', 'res-lose', 'res-draw');
+    if(type === 'WIN'){
+      title.textContent = 'THẮNG'; amt.textContent = `+${fmt(profit)} đ`; sub.textContent = `Kết quả: ${side==='UP'?'TĂNG':'GIẢM'}`; box.classList.add('res-win');
+    }else if(type === 'LOSE'){
+      title.textContent = 'THUA'; amt.textContent = `-${fmt(lose)} đ`; sub.textContent = `Kết quả: ${side==='UP'?'TĂNG':'GIẢM'}`; box.classList.add('res-lose');
+    }else{
+      title.textContent = 'HOÀ LÃI'; amt.textContent = `+${fmt(profit)} đ • -${fmt(lose)} đ`; sub.textContent = `Kết quả: ${side==='UP'?'TĂNG':'GIẢM'}`; box.classList.add('res-draw');
+    }
+    overlay.style.display = 'flex';
+    if(resultTimer) clearTimeout(resultTimer);
+    resultTimer = setTimeout(()=> hideResultOverlay(), 8000);
+  }
+  function hideResultOverlay(){ el('resultOverlay').style.display = 'none'; }
+
+  // ============================================================
+  // Render functions
+  // ============================================================
+  function renderAll(){
+    renderBalance(); renderRoundUI(); renderStats(); renderLogs(); renderDeposits(); renderWithdrawals(); renderMini(); renderPairInfo(); renderMyBetLine();
+  }
+
+  function renderBalance(){ renderRankBalance(); }
+  function renderRankBalance(){
+    const b = state.balance;
+    let rank='—';
+    if(b >= 10_000_000_000) rank='Đá quý';
+    else if(b >= 1_000_000_000) rank='Kim cương';
+    else if(b >= 100_000_000) rank='Vàng';
+    else if(b >= 10_000_000) rank='Bạc';
+    else if(b >= 1_000_000) rank='Đồng';
+    el('rankText').textContent = `Rank: ${rank}`;
+    el('balanceText').textContent = fmt(b) + ' đ';
+  }
+
+  function renderRoundUI(){
+    el('roundBadge').textContent = state.round.phase;
+    el('phaseNext').textContent = state.round.phase === 'OPEN' ? 'KẾT QUẢ' : 'OPEN';
+
+    const total = state.round.phase === 'OPEN' ? ROUND_SECONDS : COOLDOWN_SECONDS;
+    const left = clamp(state.round.left, 0, total);
+    const pct = 100 - Math.round(left/total * 100);
+    el('roundProgress').style.width = pct + '%';
+
+    const mm = String(Math.floor(left/60)).padStart(2,'0');
+    const ss = String(left%60).padStart(2,'0');
+    el('roundCountdown').textContent = `${mm}:${ss}`;
+    el('timerBig').innerText = state.round.left + 's';
+  }
+
+  function renderStats(){
+    const up = state.stat.filter(Boolean).length; const down = state.stat.length - up;
+    el('statUp').textContent = up; el('statDown').textContent = down;
+    el('statPeople').textContent = fmt(state.round.people);
+    el('statLong').textContent = fmt(state.round.sumLong);
+    el('statShort').textContent = fmt(state.round.sumShort);
+  }
+
+  function renderLogs(){
+    const box = el('roundLog');
+    if(!state.roundLog.length){ box.innerHTML = '<div class="text-xs muted">Chưa có dữ liệu</div>'; return; }
+    let html = `<table class="text-sm w-full"><thead><tr><th>Phiên</th><th>KQ</th><th>Long</th><th>Short</th><th>Người</th><th>Thời gian</th><th>My Win</th><th>My Lose</th></tr></thead><tbody>`;
+    for(const r of state.roundLog.slice(0,10)){
+      html += `<tr>
+        <td>#${r.i}</td>
+        <td class="${r.res==='UP'?'text-emerald-400':'text-rose-400'}">${r.res}</td>
+        <td>${fmt(r.long)}</td>
+        <td>${fmt(r.short)}</td>
+        <td>${fmt(r.people)}</td>
+        <td>${r.time}</td>
+        <td>${fmt(r.myWin)}</td>
+        <td>${fmt(r.myLose)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  }
+
+  function renderDeposits(){
+    const box = el('depList'); if(!box) return; box.innerHTML='';
+    for(const d of state.deposits){
+      const dv = document.createElement('div'); dv.className='ghost p-2 rounded';
+      dv.innerHTML = `<div class="font-semibold ${d.status==='THÀNH CÔNG'?'text-emerald-300':'text-amber-300'}">${d.status==='THÀNH CÔNG'? '✅':'⏳'} ${fmt(d.amount)} đ • ${d.status}</div><div class="text-xs muted">${d.time}</div>`;
+      box.appendChild(dv);
+    }
+  }
+
+  function renderWithdrawals(){
+    const box = el('wList'); if(!box) return; box.innerHTML='';
+    for(const w of state.withdrawals){
+      const dv = document.createElement('div'); dv.className='ghost p-2 rounded';
+      dv.innerHTML = `<div class="font-semibold ${w.status==='THÀNH CÔNG'?'text-emerald-300':'text-amber-300'}">-${fmt(w.amount)} đ • ${w.status}</div><div class="text-xs muted">${w.bank} • ${w.acc} • ${w.name} • ${w.time}</div>`;
+      box.appendChild(dv);
+    }
+  }
+
+  function renderMini(){
+    const dep=el('miniDep'), wit=el('miniWit');
+    if(dep) dep.innerHTML = state.deposits.slice(0,6).map(d=>`<div class='text-xs'>${d.time} • +${fmt(d.amount)} đ</div>`).join('') || '<div class="text-xs muted">—</div>';
+    if(wit) wit.innerHTML = state.withdrawals.slice(0,6).map(w=>`<div class='text-xs'>${w.time} • -${fmt(w.amount)} đ</div>`).join('') || '<div class="text-xs muted">—</div>';
+  }
+  function renderPairInfo(){ updatePriceUI(); }
+  function renderMyBetLine(){
+    const long = state.round.myBets.filter(b=>b.side==='UP').reduce((a,b)=>a+b.amount,0);
+    const short = state.round.myBets.filter(b=>b.side==='DOWN').reduce((a,b)=>a+b.amount,0);
+    el('myBetLine').textContent = `Bạn đang chọn: ${currentSide==='UP'? 'TĂNG' : 'GIẢM'} • Vé của bạn → Tăng: ${fmt(long)} đ, Giảm: ${fmt(short)} đ`;
+    el('totalBetLine').textContent = `Tổng số tiền bạn đã đặt: ${fmt(long+short)} đ`;
+  }
+
+  // ============================================================
+  // Utility
+  // ============================================================
+  function clamp(v,min,max){ return Math.min(max, Math.max(min, v)); }
+
+  // ============================================================
+  // Mobile 100vh fix + chart resize observer + modal click outside + CSKH + notif
+  // ============================================================
+  function setVH(){
+    const vh = (window.visualViewport?.height || window.innerHeight) * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+  }
+  setVH();
+  window.addEventListener('resize', setVH, {passive:true});
+  window.addEventListener('orientationchange', setVH);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setVH, {passive:true});
+  }
+
+  function attachChartResizeObserver(){
+    const holder = document.getElementById('chartLW');
+    if(!holder || !chart) return;
+    if(chartRO) chartRO.disconnect();
+    chartRO = new ResizeObserver(entries=>{
+      for(const e of entries){
+        const { width, height } = e.contentRect;
+        chart.applyOptions({ width: Math.floor(width), height: Math.floor(height) });
+      }
+    });
+    chartRO.observe(holder);
+  }
+
+  // modal: click outside to close
+  document.addEventListener('click', (e)=>{
+    document.querySelectorAll('.modal.show').forEach(m=>{
+      if(e.target === m) m.classList.remove('show');
+    });
+  }, { passive:true });
+
+  // CSKH toggle (đã ẩn bằng CSS)
+  (function(){
+    const wrap=document.querySelector('.cs-wrapper');
+    if(!wrap) return; const btn=wrap.querySelector('#csBtn'); const pop=wrap.querySelector('#csPopup');
+    let open=false; const set=v=>{open=v; pop.style.display=open?'block':'none'};
+    if(btn) btn.addEventListener('click',e=>{e.stopPropagation(); set(!open)});
+    document.addEventListener('click',()=> open && set(false));
+  })();
+
+  // Tiny withdraw notifications
+  (function(){
+    const DISPLAY_MS=10000, MIN=100_000_000, MAX=10_000_000_000;
+    const HO=["Nguyễn","Trần","Lê","Phạm","Hoàng","Huỳnh","Phan","Vũ","Võ","Đặng","Bùi","Đỗ","Hồ","Ngô","Dương","Lý"];
+    const DEM=["Văn","Hữu","Đức","Gia","Quang","Minh","Anh","Hoàng","Ngọc","Thế","Xuân","Trọng"];
+    const TEN=["Nam","An","Bình","Cường","Dũng","Hải","Hưng","Khoa","Khánh","Kiên","Lâm","Long","Minh","Nguyên","Nhật"];
+    const wrap = el('notifWrapper');
+    const rInt=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+    function gen(){return `${HO[rInt(0,HO.length-1)]} ${DEM[rInt(0,DEM.length-1)]} ${TEN[rInt(0,TEN.length-1)]}`}
+    function show(){
+      const name=gen(), amt=rInt(MIN,MAX).toLocaleString('vi-VN');
+      const d=document.createElement('div'); d.className='notif';
+      d.innerHTML=`<div class="avatar"><svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></svg></div>
+      <div class="content"><span class="name">${name}</span> rút <span class="amount">${amt} đ</span></div>`;
+      wrap.prepend(d);
+      setTimeout(()=>{ d.style.opacity='0'; d.style.transition='0.3s'; setTimeout(()=>d.remove(),300); }, DISPLAY_MS);
+    }
+    setInterval(show, DISPLAY_MS); show();
+  })();
+
+  // ============================================================
+  // PC MODE: bật/tắt để vuốt ngang xem layout như desktop trên mobile
+  // ============================================================
+  function togglePCMode(){
+    document.body.classList.toggle('pc-mode');
+    // Resize chart khi đổi chế độ để Lightweight Charts vẽ lại
+    setTimeout(()=>{ attachChartResizeObserver(); }, 0);
+  }
+  const btnPC = document.getElementById('togglePCMode');
+  const btnPCM = document.getElementById('togglePCModeMobile');
+  if(btnPC) btnPC.addEventListener('click', togglePCMode);
+  if(btnPCM) btnPCM.addEventListener('click', togglePCMode);
+
+  // ============================================================
+  // Wiring events
+  // ============================================================
+  // Header buttons
+  el('openDep').addEventListener('click', openDep);
+  el('openWit').addEventListener('click', openWit);
+
+  // Quick amounts for bet
+  document.querySelectorAll('[data-amt]').forEach(b => b.addEventListener('click', ()=> addBetAmount(Number(b.dataset.v || b.dataset.amt))));
+
+  el('btnAllin').addEventListener('click', allin);
+  el('betSubmit').addEventListener('click', submitBet);
+  el('btnUp').addEventListener('click', ()=> setSide('UP'));
+  el('btnDown').addEventListener('click', ()=> setSide('DOWN'));
+
+  // Deposit modal buttons
+  document.querySelectorAll('#modalDep .amt').forEach(btn => btn.addEventListener('click', ()=> setDepValue(btn.dataset.v)));
+  el('depSel').addEventListener('input', (e)=> formatDepAmount(e.target));
+  el('depFile').addEventListener('change', (e)=>{
+    const f=e.target.files[0], img=el('depPreview');
+    if(f){ const url=URL.createObjectURL(f); img.src=url; img.classList.remove('hidden'); }
+    else { img.src=''; img.classList.add('hidden'); }
+  });
+  el('depSubmit').addEventListener('click', deposit);
+  el('btnCopyStk').addEventListener('click', copySTK);
+
+  // Withdraw
+  el('wBtn').addEventListener('click', withdraw);
+
+  // ============================================================
+  // Boot
+  // ============================================================
+  initChart();
+  attachChartResizeObserver();
+  renderAll();
+  startRound();
+  </script>
+</body>
+</html>
